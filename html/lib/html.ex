@@ -7,34 +7,36 @@ defmodule Html do
            |> String.to_atom()
          end)
 
-  for tag <- @tags do
-    defmacro unquote(tag)(attrs, do: inner) do
-      tag = unquote(tag)
-
-      quote do
-        tag(unquote(tag), unquote(attrs), do: unquote(inner))
-      end
-    end
-
-    defmacro unquote(tag)(attrs \\ []) do
-      tag = unquote(tag)
-
-      quote do
-        tag(unquote(tag), unquote(attrs))
-      end
-    end
-  end
-
   defmacro markup(do: block) do
     quote do
-      import Kernel, except: [div: 2]
-
       {:ok, var!(buffer, Html)} = start_buffer([])
-      unquote(block)
+      unquote(Macro.postwalk(block, &postwalk/1))
       result = render(var!(buffer, Html))
       :ok = stop_buffer(var!(buffer, Html))
       result
     end
+  end
+
+  def postwalk({:text, _meta, [string]}) do
+    quote do
+      put_buffer(var!(buffer, Html), to_string(unquote(string)))
+    end
+  end
+
+  def postwalk({tag_name, _meta, [[do: inner]]}) when tag_name in @tags do
+    quote do
+      tag(unquote(tag_name), [], do: unquote(inner))
+    end
+  end
+
+  def postwalk({tag_name, _meta, [attrs, [do: inner]]}) when tag_name in @tags do
+    quote do
+      tag(unquote(tag_name), unquote(attrs), do: unquote(inner))
+    end
+  end
+
+  def postwalk(ast) do
+    ast
   end
 
   def start_buffer(state), do: Agent.start_link(fn -> state end)
@@ -44,14 +46,6 @@ defmodule Html do
   def put_buffer(buffer, content), do: Agent.update(buffer, &[content | &1])
 
   def render(buffer), do: Agent.get(buffer, & &1) |> Enum.reverse() |> Enum.join()
-
-  defmacro tag(name, attrs \\ []) do
-    {inner, attrs} = Keyword.pop(attrs, :do)
-
-    quote do
-      tag(unquote(name), unquote(attrs), do: unquote(inner))
-    end
-  end
 
   defmacro tag(name, attrs, do: inner) do
     quote do
@@ -72,11 +66,5 @@ defmodule Html do
       end
 
     "<#{name}#{attr_html}>"
-  end
-
-  defmacro text(string) do
-    quote do
-      put_buffer(var!(buffer, Html), to_string(unquote(string)))
-    end
   end
 end
