@@ -3,18 +3,18 @@ defmodule Template do
 
   def render do
     markup do
-      tag :table do
-        tag :tr do
-          for i <- 0..5 do
-            tag :td do
-              text("Cell #{i}")
-            end
-          end
+      div id: "main" do
+        h1 class: "title" do
+          text("Welcome!")
         end
       end
 
-      tag :div do
-        text("Some Nested Content")
+      div class: "row" do
+        div do
+          p do
+            text("Hello!")
+          end
+        end
       end
     end
   end
